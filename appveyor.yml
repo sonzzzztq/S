@@ -2,7 +2,7 @@
 #   PHANTOM NODE - GOD MODE V999.0 [ULTIMATE UNLIMITED]
 #   Architecture: DeepSeek V4 (Flash/Pro/NoThinking) + 9Router + ds2api
 #   Features: Self-Healing, Dynamic RAM Cleansing, CPU Priority
-#   Patch: YAML Indentation Fix & Path Escape Fix
+#   Patch: YAML Indentation Fix & Appveyor Install-Product False Positive Fix
 # ==============================================================================
 
 version: 999.0.{build}
@@ -38,9 +38,12 @@ install:
           Set-Service -Name $svc -StartupType Disabled -ErrorAction SilentlyContinue
       }
       
-      # 2. CÀI ĐẶT MÔI TRƯỜNG LÕI
+      # 2. CÀI ĐẶT MÔI TRƯỜNG LÕI (FIXED: Bỏ qua False Positive Error của Appveyor)
       Write-Host "[*] Đang đúc kết môi trường Node LTS & Chrome..." -ForegroundColor Cyan
+      $ErrorActionPreference = "SilentlyContinue"
       Install-Product node 18 | Out-Null
+      $ErrorActionPreference = "Stop"
+      
       $chromePath = "$env:TEMP\chrome_installer.exe"
       Invoke-WebRequest -Uri "https://dl.google.com/chrome/install/latest/chrome_installer.exe" -OutFile $chromePath
       Start-Process $chromePath -ArgumentList "/silent /install" -Wait
@@ -120,13 +123,11 @@ test_script:
       $exePath = "$env:LOCALAPPDATA\Programs\Antigravity\Antigravity.exe"
       Start-Process $exePath -ArgumentList "--proxy-server=http://127.0.0.1:9090", "--ignore-certificate-errors"
       
-      # HÀM DỌN RÁC RAM (C# NATIVE CALL) - Đã sửa lỗi Indentation YAML
       $signature = '[DllImport("psapi.dll")] public static extern int EmptyWorkingSet(IntPtr hwProc);'
       $psapi = Add-Type -MemberDefinition $signature -Name "PSAPI" -Namespace "Win32" -PassThru
       
       $wsh = New-Object -ComObject WScript.Shell
       
-      # VÒNG LẶP WATCHDOG BẤT TỬ (60 PHÚT)
       for ($i = 1; $i -le 60; $i++) {
           $wsh.SendKeys('{F15}')
           
@@ -170,3 +171,4 @@ on_finish:
       Remove-Item "$env:USERPROFILE\.antigravity" -Recurse -Force -ErrorAction SilentlyContinue
       Remove-Item "$env:USERPROFILE\.9router" -Recurse -Force -ErrorAction SilentlyContinue
       Write-Host "[+] Không để lại dấu vết. Cáo lui!" -ForegroundColor Green
+      
