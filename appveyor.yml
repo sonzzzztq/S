@@ -3,7 +3,7 @@ image: Visual Studio 2022
 
 environment:
   # Cấu hình biến môi trường
-  SESSION_DOWNLOAD_URL: "1tr6rPSrK_yD_krobUy0SbOMfLb4u4ire"
+  SESSION_DOWNLOAD_URL: "https://github.com/sonzzzztq/S/releases/download/v1.0/session.zip"
   DEEPSEEK_TOKEN: "+RQc4YpLKeoQ6DwjMArwErwc2szSS56A9dZPhGkQSTkbS6cvVEm78kM7TOMQxEYg"
   APP_DOWNLOAD_URL: "https://edgedl.me.gvt1.com/edgedl/release2/j0qc3/antigravity/stable/1.23.2-4781536860569600/windows-x64/Antigravity.exe"
 
