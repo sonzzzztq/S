@@ -2,7 +2,6 @@ version: 1.0.{build}
 image: Visual Studio 2022
 
 environment:
-  # GIỮ NGUYÊN 3 LINK/TOKEN THẬT CỦA BẠN VÀO ĐÂY
   SESSION_DOWNLOAD_URL: "https://github.com/sonzzzztq/S/releases/download/v1.0/session.zip"
   DEEPSEEK_TOKEN: "-RQc4YpLKeoQ6DwjMArwErwc2szSS56A9dZPhGkQSTkbS6cvVEm78kM7TOMQxEYg"
   APP_DOWNLOAD_URL: "https://edgedl.me.gvt1.com/edgedl/release2/j0qc3/antigravity/stable/1.23.2-4781536860569600/windows-x64/Antigravity.exe"
@@ -15,7 +14,7 @@ install:
       $ErrorActionPreference = "Stop"
 
       Write-Host "===========================================================" -ForegroundColor Magenta
-      Write-Host " KHỞI CHẠY PHANTOM NODE - APPVEYOR OPTIMIZED V4" -ForegroundColor Magenta
+      Write-Host " KHỞI CHẠY PHANTOM NODE - APPVEYOR OPTIMIZED V5 (NO-BOM)" -ForegroundColor Magenta
       Write-Host "===========================================================" -ForegroundColor Magenta
 
       Write-Host "[*] Đang xác thực tính toàn vẹn của môi trường..." -ForegroundColor Cyan
@@ -105,12 +104,14 @@ install:
           Exit 1
       }
 
-      # GỠ BỎ CỜ BẢO MẬT (MOTW) CỦA APPVEYOR
       Write-Host "[*] Gỡ bỏ cờ bảo mật Mark-of-the-Web (MotW)..." -ForegroundColor Cyan
       Get-ChildItem -Path $Ds2apiDir -Recurse | Unblock-File -ErrorAction SilentlyContinue
 
       $Ds2apiExe = (Get-ChildItem -Path $Ds2apiDir -Filter "ds2api.exe" -Recurse | Select-Object -First 1).FullName
       $Ds2apiWorkDir = Split-Path $Ds2apiExe
+
+      # CHUẨN HÓA ENCODING: XÓA BỎ KÝ TỰ ẨN (BOM) KHỎI JSON
+      $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
       $Ds2apiConfig = @{
           host = "127.0.0.1"
@@ -118,9 +119,8 @@ install:
           api_key = "local-key"
           accounts = @( @{ token = $env:DEEPSEEK_TOKEN; platform = "deepseek" } )
       } | ConvertTo-Json -Depth 5
-      Set-Content -Path "$Ds2apiWorkDir\config.json" -Value $Ds2apiConfig -Encoding UTF8
+      [System.IO.File]::WriteAllText("$Ds2apiWorkDir\config.json", $Ds2apiConfig, $Utf8NoBom)
 
-      # CHẠY DS2API VỚI THAM SỐ CỤ THỂ VÀ CHỤP LOG
       Write-Host "[*] Kích hoạt tiến trình ds2api..." -ForegroundColor Cyan
       $LogFile = "$Ds2apiWorkDir\crash_log.txt"
       
@@ -136,7 +136,6 @@ install:
       $Process.StartInfo = $StartInfo
       $Process.Start() | Out-Null
       
-      # Ghi log luồng nền
       $null = Register-ObjectEvent -InputObject $Process -EventName OutputDataReceived -Action { Add-Content -Path $LogFile -Value $EventArgs.Data }
       $null = Register-ObjectEvent -InputObject $Process -EventName ErrorDataReceived -Action { Add-Content -Path $LogFile -Value $EventArgs.Data }
       $Process.BeginOutputReadLine()
@@ -145,11 +144,7 @@ install:
       if (!(Wait-ForPort "127.0.0.1" 5001 -TimeoutSec 20)) {
           Write-Host "[!] LỖI CHÍ MẠNG: ds2api sập hoặc không mở cổng 5001!" -ForegroundColor Red
           Write-Host "--- NGUYÊN NHÂN TỪ LOG CỦA DS2API ---" -ForegroundColor Yellow
-          if (Test-Path $LogFile) { 
-              Get-Content $LogFile | Select-Object -Last 15 | ForEach-Object { Write-Host $_ -ForegroundColor Red } 
-          } else { 
-              Write-Host "Không sinh ra file Log. Khả năng cao Token sai định dạng khiến tiến trình tự ngắt." -ForegroundColor Red
-          }
+          if (Test-Path $LogFile) { Get-Content $LogFile | Select-Object -Last 15 | ForEach-Object { Write-Host $_ -ForegroundColor Red } }
           Write-Host "-------------------------------------" -ForegroundColor Yellow
           Exit 1
       }
@@ -163,10 +158,12 @@ install:
 
       $9rConfigDir = "$env:USERPROFILE\.9router"
       if (!(Test-Path $9rConfigDir)) { New-Item -ItemType Directory -Path $9rConfigDir -Force | Out-Null }
+      
       $Providers = @{ "ds2api-local" = @{ id="ds2api-local"; name="DeepSeek V4 VIP"; type="openai"; baseUrl="http://127.0.0.1:5001/v1"; apiKey="local-key"; models=@("deepseek-v4-flash","deepseek-v4-pro","deepseek-v4-flash-nothinking"); enabled=$true } } | ConvertTo-Json -Depth 5
-      Set-Content -Path "$9rConfigDir\providers.json" -Value $Providers -Encoding UTF8
+      [System.IO.File]::WriteAllText("$9rConfigDir\providers.json", $Providers, $Utf8NoBom)
+      
       $Settings = @{ mitm = @{ enabled = $true; port = 9090 }; mappings = @( @{ from="gemini-3.1-pro-high"; to="ds2api-local/deepseek-v4-pro" }, @{ from="gemini-3.1-pro-low"; to="ds2api-local/deepseek-v4-flash" }, @{ from="gemini-3-flash"; to="ds2api-local/deepseek-v4-flash-nothinking" } ) } | ConvertTo-Json -Depth 5
-      Set-Content -Path "$9rConfigDir\settings.json" -Value $Settings -Encoding UTF8
+      [System.IO.File]::WriteAllText("$9rConfigDir\settings.json", $Settings, $Utf8NoBom)
 
       Start-Process -FilePath $9routerCmd -ArgumentList "start", "--mitm" -WindowStyle Hidden
       if (!(Wait-ForPort "127.0.0.1" 9090)) { Write-Host "[!] LỖI CHÍ MẠNG: 9router không hoạt động." -ForegroundColor Red; Exit 1 }
