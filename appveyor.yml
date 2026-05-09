@@ -140,8 +140,7 @@ install:
       npm install -g 9router | Out-Null
 
       $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-      $9routerCmd = "$env:APPDATA
-pm\9router.cmd"
+      $9routerCmd = "$env:APPDATA" + '\npm\9router.cmd'
       if (!(Test-Path $9routerCmd)) {
           $9routerCmd = (Get-Command "9router" -ErrorAction SilentlyContinue).Source
       }
