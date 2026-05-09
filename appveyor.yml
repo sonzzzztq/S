@@ -1,8 +1,8 @@
 # ==============================================================================
-#   PHANTOM NODE - SESSION RETRIEVAL PHASE (RDP ENABLER)
+#   PHANTOM NODE - SESSION RETRIEVAL PHASE (RDP ENABLER) - FIXED
 #   Target: Download, install, and configure Antigravity IDE for manual RDP login
 #   Methodology: Hieu Methodology - Maximum Stability & Automation
-#   Bypass: Google Auth Rendering Issues (Chrome default integration)
+#   Bypass: Defender Policy Block, Google Auth Rendering Issues
 # ==============================================================================
 
 version: 1.0.{build}
@@ -16,12 +16,12 @@ branches:
     - main
 
 environment:
-  # Cấu hình mật khẩu RDP cố định để bạn dễ dàng đăng nhập từ điện thoại
+  # Cấu hình mật khẩu RDP cố định để kết nối từ điện thoại
   APPVEYOR_RDP_PASSWORD: "HieuDz@123456"
   APP_DOWNLOAD_URL: "https://edgedl.me.gvt1.com/edgedl/release2/j0qc3/antigravity/stable/1.23.2-4781536860569600/windows-x64/Antigravity.exe"
 
 init:
-  # Kích hoạt tính năng RDP của AppVeyor ngay từ đầu để sẵn sàng kết nối
+  # Kích hoạt tính năng RDP của AppVeyor ngay từ đầu
   - ps: iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
 
 build: off
@@ -30,17 +30,22 @@ install:
   - ps: |
       $ErrorActionPreference = "Stop"
       
-      # 1. Tắt Windows Defender để tránh quét file gây nghẽn hoặc khóa tiến trình cài đặt
-      Write-Host "[*] Đang tắt Windows Defender..." -ForegroundColor Cyan
-      Set-MpPreference -DisableRealtimeMonitoring $true
+      # 1. BẢO VỆ TIẾN TRÌNH: Tắt Defender có try/catch để tránh lỗi Group Policy chặn build
+      Write-Host "[*] Đang thử vô hiệu hóa Windows Defender..." -ForegroundColor Cyan
+      try {
+          Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction Stop
+          Write-Host "[+] Đã vô hiệu hóa Windows Defender thành công." -ForegroundColor Green
+      } catch {
+          Write-Host "[-] Defender Policy bị khóa bởi hệ thống. Bỏ qua bước này để tiếp tục cài đặt." -ForegroundColor Yellow
+      }
       
-      # 2. Cài đặt Chrome Standalone (Yêu cầu bắt buộc để hiển thị khung đăng nhập Google của Electron)
+      # 2. Cài đặt Chrome Standalone (Cực kỳ quan trọng để render khung đăng nhập Google)
       Write-Host "[*] Đang tải và cài đặt Google Chrome..." -ForegroundColor Cyan
       $chromePath = "$env:TEMP\chrome_installer.exe"
       Invoke-WebRequest -Uri "https://dl.google.com/chrome/install/latest/chrome_installer.exe" -OutFile $chromePath
       Start-Process $chromePath -ArgumentList "/silent /install" -Wait
       
-      # Tự động cấu hình Chrome làm trình duyệt mặc định để bypass hộp thoại hệ thống
+      # Tự động cấu hình Chrome làm trình duyệt mặc định
       $browserReg = "HKLM:\SOFTWARE\Clients\StartMenuInternet\Google Chrome\Capabilities\URLAssociations"
       $items = Get-Item -Path $browserReg
       foreach ($val in $items.GetValueNames()) {
@@ -52,19 +57,19 @@ install:
       Write-Host "[*] Đang tải bộ cài Antigravity IDE..." -ForegroundColor Yellow
       $setupFile = "$env:TEMP\Antigravity_Setup.exe"
       
-      # Đảm bảo dọn dẹp các tiến trình cài đặt cũ đang chạy ngầm nếu có để tránh lỗi "Setup is running"
+      # Dọn dẹp các tiến trình cài đặt cũ đang chạy ngầm nếu có
       Stop-Process -Name "Antigravity*" -Force -ErrorAction SilentlyContinue
       
       Invoke-WebRequest -Uri $env:APP_DOWNLOAD_URL -OutFile $setupFile
       
-      Write-Host "[*] Đang cài đặt Antigravity IDE trong nền (Vui lòng chờ)..." -ForegroundColor Yellow
+      Write-Host "[*] Đang cài đặt Antigravity IDE trong nền..." -ForegroundColor Yellow
       # Chạy trình cài đặt ở chế độ Very Silent và bắt buộc chờ hoàn tất
       $installProcess = Start-Process $setupFile -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-" -PassThru -Wait
       
-      # Đợi thêm 5 giây để hệ thống hoàn tất ghi đè file lên đĩa cứng
+      # Đợi thêm 5 giây để hệ thống ghi đè file hoàn tất
       Start-Sleep -Seconds 5
       
-      # 4. Tạo Shortcut ra Desktop để bạn mở trực tiếp
+      # 4. Tạo Shortcut ra Desktop để mở trực tiếp
       $exePath = "$env:LOCALAPPDATA\Programs\Antigravity\Antigravity.exe"
       if (Test-Path $exePath) {
           $ws = New-Object -ComObject WScript.Shell
@@ -86,23 +91,21 @@ test_script:
       Write-Host "    - IP & Port: Xem ở dòng log RDP phía trên của AppVeyor."
       Write-Host "    - Username: appveyor"
       Write-Host "    - Password: $env:APPVEYOR_RDP_PASSWORD"
-      Write-Host " 2. Khi vào màn hình Desktop của máy ảo, bạn sẽ thấy icon 'Antigravity IDE'."
-      Write-Host "    --> TUYỆT ĐỐI KHÔNG chạy lại tệp cài đặt nào trong folder Downloads" -ForegroundColor Red
-      Write-Host "        vì hệ thống đã tự động cài đặt hoàn tất rồi!" -ForegroundColor Red
-      Write-Host " 3. Kích hoạt icon 'Antigravity IDE' trên Desktop và tiến hành đăng nhập"
-      Write-Host "    tài khoản Google và GitHub thủ công (xác thực 2FA bằng điện thoại)."
+      Write-Host " 2. Khi vào màn hình Desktop của máy ảo, nhấp đúp icon 'Antigravity IDE'."
+      Write-Host "    --> TUYỆT ĐỐI KHÔNG tự chạy lại tệp cài đặt nào trong folder Downloads!" -ForegroundColor Red
+      Write-Host " 3. Tiến hành đăng nhập tài khoản Google và GitHub thủ công."
       Write-Host " 4. Khi đăng nhập thành công và vào tới giao diện làm việc chính,"
-      Write-Host "    hãy mở PowerShell trên máy ảo và chạy lệnh sau để đóng gói session:"
+      Write-Host "    mở PowerShell trên máy ảo và chạy lệnh đóng gói session:"
       Write-Host '    Compress-Archive -Path "$env:USERPROFILE\.antigravity" -DestinationPath "$env:USERPROFILE\Desktop\session.zip" -Force'
-      Write-Host " 5. Tải file 'session.zip' từ Desktop lên gofile.io hoặc file.io để lấy link."
+      Write-Host " 5. Tải file 'session.zip' từ Desktop lên gofile.io để lấy link."
       Write-Host "=================================================================" -ForegroundColor Green
       
-      # Duy trì kết nối máy ảo trong 90 phút để bạn thao tác thoải mái
+      # Duy trì kết nối máy ảo trong 90 phút
       for ($i = 1; $i -le 90; $i++) {
           $ram = [math]::Round((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory / 1024 / 1024, 2)
           Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Keep-Alive: $i/90 phút | RAM trống: ${ram}GB"
           Start-Sleep -Seconds 60
           $wsh = New-Object -ComObject WScript.Shell
-          $wsh.SendKeys("{F15}") # Gửi phím ảo định kỳ để chống ngắt kết nối AFK
+          $wsh.SendKeys("{F15}")
       }
       
