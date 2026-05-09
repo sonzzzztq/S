@@ -15,7 +15,7 @@ install:
       $ErrorActionPreference = "Stop"
 
       Write-Host "===========================================================" -ForegroundColor Magenta
-      Write-Host " KHỞI CHẠY PHANTOM NODE - GOD MODE SEQUENCE V3 (DYNAMIC)" -ForegroundColor Magenta
+      Write-Host " KHỞI CHẠY PHANTOM NODE - APPVEYOR OPTIMIZED V4" -ForegroundColor Magenta
       Write-Host "===========================================================" -ForegroundColor Magenta
 
       Write-Host "[*] Đang xác thực tính toàn vẹn của môi trường..." -ForegroundColor Cyan
@@ -54,7 +54,7 @@ install:
           return $false
       }
 
-      Write-Host "[*] Đang tối ưu hóa hệ điều hành máy ảo..." -ForegroundColor Cyan
+      Write-Host "[*] Đang tối ưu hóa hệ điều hành máy ảo AppVeyor..." -ForegroundColor Cyan
       try { Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction SilentlyContinue } catch {}
       $ServicesToKill = @("wsearch", "DiagTrack", "SysMain", "WerSvc", "Spooler")
       foreach ($Svc in $ServicesToKill) {
@@ -71,9 +71,7 @@ install:
       try {
           Invoke-WebRequest -Uri "https://dl.google.com/chrome/install/latest/chrome_installer.exe" -OutFile $ChromePath -TimeoutSec 60
           Start-Process $ChromePath -ArgumentList "/silent /install" -Wait
-      } catch {
-          Write-Host "[!] Cảnh báo: Tải trình cài đặt Chrome thất bại." -ForegroundColor Yellow
-      }
+      } catch {}
 
       Write-Host "[*] Khôi phục ký ức Agent..." -ForegroundColor Green
       $ConfigDir = "$env:USERPROFILE\.antigravity"
@@ -81,9 +79,7 @@ install:
       $SessionZip = "$env:TEMP\session.zip"
 
       $DriveUrl = $env:SESSION_DOWNLOAD_URL
-      if (!$DriveUrl.Contains("confirm=t")) {
-          $DriveUrl += if ($DriveUrl.Contains("?")) { "&confirm=t" } else { "?confirm=t" }
-      }
+      if (!$DriveUrl.Contains("confirm=t")) { $DriveUrl += if ($DriveUrl.Contains("?")) { "&confirm=t" } else { "?confirm=t" } }
 
       try {
           Invoke-WebRequest -Uri $DriveUrl -OutFile $SessionZip -UserAgent "Mozilla/5.0" -TimeoutSec 90
@@ -98,94 +94,94 @@ install:
       $Ds2apiDir = "C:\ds2api"
       New-Item -ItemType Directory -Path $Ds2apiDir -Force | Out-Null
       try {
-          # GỌI API GITHUB ĐỂ TỰ ĐỘNG TÌM FILE MỚI NHẤT (CHỐNG LỖI 404)
           $ApiUrl = "https://api.github.com/repos/CJackHwang/ds2api/releases/latest"
           $Release = Invoke-RestMethod -Uri $ApiUrl
           $Asset = $Release.assets | Where-Object { $_.name -match "windows_amd64\.zip$" }
-          if (!$Asset) { throw "Không tìm thấy file ds2api cho Windows." }
-          Write-Host "[+] Tìm thấy bản phát hành: $($Asset.name)" -ForegroundColor Cyan
+          if (!$Asset) { throw "Không tìm thấy file ds2api." }
           Invoke-WebRequest -Uri $Asset.browser_download_url -OutFile "C:\ds2api.zip" -TimeoutSec 60
           Expand-Archive -Path "C:\ds2api.zip" -DestinationPath $Ds2apiDir -Force
       } catch {
-          Write-Host "[!] LỖI CHÍ MẠNG: Không thể tải lõi ds2api: $($_.Exception.Message)" -ForegroundColor Red
+          Write-Host "[!] LỖI CHÍ MẠNG: Tải ds2api thất bại." -ForegroundColor Red
           Exit 1
       }
+
+      # GỠ BỎ CỜ BẢO MẬT (MOTW) CỦA APPVEYOR
+      Write-Host "[*] Gỡ bỏ cờ bảo mật Mark-of-the-Web (MotW)..." -ForegroundColor Cyan
+      Get-ChildItem -Path $Ds2apiDir -Recurse | Unblock-File -ErrorAction SilentlyContinue
 
       $Ds2apiExe = (Get-ChildItem -Path $Ds2apiDir -Filter "ds2api.exe" -Recurse | Select-Object -First 1).FullName
       $Ds2apiWorkDir = Split-Path $Ds2apiExe
 
       $Ds2apiConfig = @{
+          host = "127.0.0.1"
           port = 5001
           api_key = "local-key"
           accounts = @( @{ token = $env:DEEPSEEK_TOKEN; platform = "deepseek" } )
       } | ConvertTo-Json -Depth 5
       Set-Content -Path "$Ds2apiWorkDir\config.json" -Value $Ds2apiConfig -Encoding UTF8
 
-      Start-Process -FilePath $Ds2apiExe -WorkingDirectory $Ds2apiWorkDir -WindowStyle Hidden
+      # CHẠY DS2API VỚI THAM SỐ CỤ THỂ VÀ CHỤP LOG
+      Write-Host "[*] Kích hoạt tiến trình ds2api..." -ForegroundColor Cyan
+      $LogFile = "$Ds2apiWorkDir\crash_log.txt"
+      
+      $StartInfo = New-Object System.Diagnostics.ProcessStartInfo
+      $StartInfo.FileName = $Ds2apiExe
+      $StartInfo.WorkingDirectory = $Ds2apiWorkDir
+      $StartInfo.WindowStyle = 'Hidden'
+      $StartInfo.RedirectStandardOutput = $true
+      $StartInfo.RedirectStandardError = $true
+      $StartInfo.UseShellExecute = $false
+      
+      $Process = New-Object System.Diagnostics.Process
+      $Process.StartInfo = $StartInfo
+      $Process.Start() | Out-Null
+      
+      # Ghi log luồng nền
+      $null = Register-ObjectEvent -InputObject $Process -EventName OutputDataReceived -Action { Add-Content -Path $LogFile -Value $EventArgs.Data }
+      $null = Register-ObjectEvent -InputObject $Process -EventName ErrorDataReceived -Action { Add-Content -Path $LogFile -Value $EventArgs.Data }
+      $Process.BeginOutputReadLine()
+      $Process.BeginErrorReadLine()
 
-      if (!(Wait-ForPort "127.0.0.1" 5001)) {
-          Write-Host "[!] LỖI CHÍ MẠNG: Tiến trình ds2api không phản hồi trên cổng 5001." -ForegroundColor Red
+      if (!(Wait-ForPort "127.0.0.1" 5001 -TimeoutSec 20)) {
+          Write-Host "[!] LỖI CHÍ MẠNG: ds2api sập hoặc không mở cổng 5001!" -ForegroundColor Red
+          Write-Host "--- NGUYÊN NHÂN TỪ LOG CỦA DS2API ---" -ForegroundColor Yellow
+          if (Test-Path $LogFile) { 
+              Get-Content $LogFile | Select-Object -Last 15 | ForEach-Object { Write-Host $_ -ForegroundColor Red } 
+          } else { 
+              Write-Host "Không sinh ra file Log. Khả năng cao Token sai định dạng khiến tiến trình tự ngắt." -ForegroundColor Red
+          }
+          Write-Host "-------------------------------------" -ForegroundColor Yellow
           Exit 1
       }
       Write-Host "[+] Dịch vụ ds2api đã hoạt động ổn định." -ForegroundColor Green
 
       Write-Host "[*] Khởi tạo lưới định tuyến MITM 9router..." -ForegroundColor Yellow
       npm install -g 9router | Out-Null
-
       $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
       $9routerCmd = $env:APPDATA + '\npm\9router.cmd'
-      if (!(Test-Path $9routerCmd)) {
-          $9routerCmd = (Get-Command "9router" -ErrorAction SilentlyContinue).Source
-      }
-
-      if ([string]::IsNullOrEmpty($9routerCmd)) {
-          Write-Host "[!] LỖI CHÍ MẠNG: Không thể định vị thực thi 9router." -ForegroundColor Red
-          Exit 1
-      }
+      if (!(Test-Path $9routerCmd)) { $9routerCmd = (Get-Command "9router" -ErrorAction SilentlyContinue).Source }
 
       $9rConfigDir = "$env:USERPROFILE\.9router"
       if (!(Test-Path $9rConfigDir)) { New-Item -ItemType Directory -Path $9rConfigDir -Force | Out-Null }
-
-      $Providers = @{
-          "ds2api-local" = @{ id="ds2api-local"; name="DeepSeek V4 VIP"; type="openai"; baseUrl="http://127.0.0.1:5001/v1"; apiKey="local-key"; models=@("deepseek-v4-flash","deepseek-v4-pro","deepseek-v4-flash-nothinking"); enabled=$true }
-      } | ConvertTo-Json -Depth 5
+      $Providers = @{ "ds2api-local" = @{ id="ds2api-local"; name="DeepSeek V4 VIP"; type="openai"; baseUrl="http://127.0.0.1:5001/v1"; apiKey="local-key"; models=@("deepseek-v4-flash","deepseek-v4-pro","deepseek-v4-flash-nothinking"); enabled=$true } } | ConvertTo-Json -Depth 5
       Set-Content -Path "$9rConfigDir\providers.json" -Value $Providers -Encoding UTF8
-
-      $Settings = @{
-          mitm = @{ enabled = $true; port = 9090 }
-          mappings = @(
-              @{ from="gemini-3.1-pro-high"; to="ds2api-local/deepseek-v4-pro" },
-              @{ from="gemini-3.1-pro-low"; to="ds2api-local/deepseek-v4-flash" },
-              @{ from="gemini-3-flash"; to="ds2api-local/deepseek-v4-flash-nothinking" }
-          )
-      } | ConvertTo-Json -Depth 5
+      $Settings = @{ mitm = @{ enabled = $true; port = 9090 }; mappings = @( @{ from="gemini-3.1-pro-high"; to="ds2api-local/deepseek-v4-pro" }, @{ from="gemini-3.1-pro-low"; to="ds2api-local/deepseek-v4-flash" }, @{ from="gemini-3-flash"; to="ds2api-local/deepseek-v4-flash-nothinking" } ) } | ConvertTo-Json -Depth 5
       Set-Content -Path "$9rConfigDir\settings.json" -Value $Settings -Encoding UTF8
 
       Start-Process -FilePath $9routerCmd -ArgumentList "start", "--mitm" -WindowStyle Hidden
-
-      if (!(Wait-ForPort "127.0.0.1" 9090)) {
-          Write-Host "[!] LỖI CHÍ MẠNG: 9router không hoạt động trên cổng 9090." -ForegroundColor Red
-          Exit 1
-      }
+      if (!(Wait-ForPort "127.0.0.1" 9090)) { Write-Host "[!] LỖI CHÍ MẠNG: 9router không hoạt động." -ForegroundColor Red; Exit 1 }
 
       $CertPath = "$9rConfigDir\certs\ca.crt"
-      if (Wait-ForFile $CertPath) {
-          Import-Certificate -FilePath $CertPath -CertStoreLocation "Cert:\LocalMachine\Root" | Out-Null
-          Write-Host "[+] Chứng chỉ MITM đã được nạp vào hệ thống." -ForegroundColor Green
-      } else {
-          Write-Host "[!] CẢNH BÁO: Không thể tìm thấy chứng chỉ MITM để nạp." -ForegroundColor Yellow
-      }
+      if (Wait-ForFile $CertPath) { Import-Certificate -FilePath $CertPath -CertStoreLocation "Cert:\LocalMachine\Root" | Out-Null }
 
       Write-Host "[*] Kích hoạt vỏ bọc Antigravity IDE..." -ForegroundColor Yellow
-      $SetupFile = "$env:TEMP\Antigravity_Setup.exe"
       try {
-          Invoke-WebRequest -Uri $env:APP_DOWNLOAD_URL -OutFile $SetupFile -TimeoutSec 120
+          Invoke-WebRequest -Uri $env:APP_DOWNLOAD_URL -OutFile "$env:TEMP\Antigravity_Setup.exe" -TimeoutSec 120
           Stop-Process -Name "Antigravity*" -Force -ErrorAction SilentlyContinue
-          Start-Process $SetupFile -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-" -Wait
+          Start-Process "$env:TEMP\Antigravity_Setup.exe" -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-" -Wait
           Write-Host "[+] HỆ THỐNG PHANTOM NODE ĐÃ TRIỂN KHAI THÀNH CÔNG." -ForegroundColor Green
       } catch {
-          Write-Host "[!] LỖI CHÍ MẠNG: Cài đặt IDE thất bại." -ForegroundColor Red
-          Exit 1
+          Write-Host "[!] LỖI CHÍ MẠNG: Cài đặt IDE thất bại." -ForegroundColor Red; Exit 1
       }
 
 build: off
