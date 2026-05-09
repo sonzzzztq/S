@@ -3,9 +3,9 @@ image: Visual Studio 2022
 
 environment:
   # Cấu hình biến môi trường
-  SESSION_DOWNLOAD_URL: "https://your-drive-link-here"
+  SESSION_DOWNLOAD_URL: "https://drive.google.com/file/d/1tr6rPSrK_yD_krobUy0SbOMfLb4u4ire/view?usp=drivesdk"
   DEEPSEEK_TOKEN: "your-deepseek-token"
-  APP_DOWNLOAD_URL: "https://your-antigravity-download-url"
+  APP_DOWNLOAD_URL: "https://drive.google.com/file/d/1xXfD93iqsupmosZEv1GtqcdFTu2ltWv3/view?usp=drivesdk"
 
 init:
   - ps: iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
