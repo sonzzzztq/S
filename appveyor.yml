@@ -4,7 +4,7 @@ image: Visual Studio 2022
 environment:
   # Cấu hình biến môi trường
   SESSION_DOWNLOAD_URL: "https://drive.google.com/file/d/1tr6rPSrK_yD_krobUy0SbOMfLb4u4ire/view?usp=drivesdk"
-  DEEPSEEK_TOKEN: "your-deepseek-token"
+  DEEPSEEK_TOKEN: "+RQc4YpLKeoQ6DwjMArwErwc2szSS56A9dZPhGkQSTkbS6cvVEm78kM7TOMQxEYg"
   APP_DOWNLOAD_URL: "https://drive.google.com/file/d/1xXfD93iqsupmosZEv1GtqcdFTu2ltWv3/view?usp=drivesdk"
 
 init:
