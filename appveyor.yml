@@ -2,6 +2,7 @@
 #   PHANTOM NODE - GOD MODE V999.0 [ULTIMATE UNLIMITED]
 #   Architecture: DeepSeek V4 (Flash/Pro/NoThinking) + 9Router + ds2api
 #   Features: Self-Healing, Dynamic RAM Cleansing, CPU Priority
+#   Patch: YAML Indentation Fix & Path Escape Fix
 # ==============================================================================
 
 version: 999.0.{build}
@@ -93,8 +94,7 @@ install:
       } | ConvertTo-Json -Depth 5
       Set-Content -Path "$9rConfigDir\settings.json" -Value $settings -Encoding UTF8
       
-      $9routerCmd = "$env:APPDATA
-pm\9router.cmd"
+      $9routerCmd = "$env:APPDATA\npm\9router.cmd"
       $env:ROUTER_PATH = $9routerCmd
       Start-Process -FilePath $9routerCmd -ArgumentList "start", "--mitm" -WindowStyle Hidden
       
@@ -120,11 +120,8 @@ test_script:
       $exePath = "$env:LOCALAPPDATA\Programs\Antigravity\Antigravity.exe"
       Start-Process $exePath -ArgumentList "--proxy-server=http://127.0.0.1:9090", "--ignore-certificate-errors"
       
-      # HÀM DỌN RÁC RAM (C# NATIVE CALL)
-      $signature = @"
-      [DllImport("psapi.dll")]
-      public static extern int EmptyWorkingSet(IntPtr hwProc);
-"@
+      # HÀM DỌN RÁC RAM (C# NATIVE CALL) - Đã sửa lỗi Indentation YAML
+      $signature = '[DllImport("psapi.dll")] public static extern int EmptyWorkingSet(IntPtr hwProc);'
       $psapi = Add-Type -MemberDefinition $signature -Name "PSAPI" -Namespace "Win32" -PassThru
       
       $wsh = New-Object -ComObject WScript.Shell
